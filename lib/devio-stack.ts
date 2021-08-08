@@ -6,9 +6,12 @@ export class DevioStack extends cdk.Stack {
     super(scope, id, props);
 
     // The code that defines your stack goes here
+    const systemName = this.node.tryGetContext('systemName');
+    const envType = this.node.tryGetContext('envType');
+
     new CfnVPC(this, 'Vpc', {
       cidrBlock: '10.0.0.0/16',
-      tags: [{ key: 'Name', value: 'devio-stg-vpc' }]
+      tags: [{ key: 'Name', value: `${systemName}-${envType}-vpc` }]
     });
   }
 }
