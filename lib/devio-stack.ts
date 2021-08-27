@@ -7,6 +7,7 @@ import { NatGateway } from './resource/natGateway';
 import { RouteTable } from './resource/routeTable';
 import { NetworkAcl } from './resource/networkAcl';
 import { IamRole } from './resource/iamRole';
+import { SecurityGroup } from './resource/securityGroup';
 export class DevioStack extends cdk.Stack {
   constructor(scope: cdk.Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
@@ -62,8 +63,13 @@ export class DevioStack extends cdk.Stack {
       subnet.db1c
     );
     networkAcl.createResources(this);
-
+    
+    // IAM Role
     const iamRole = new IamRole();
     iamRole.createResources(this);
+
+    // Security Group
+    const securityGroup = new SecurityGroup(vpc.vpc);
+    securityGroup.createResources(this);
   }
 }
