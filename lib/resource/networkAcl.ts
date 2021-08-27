@@ -125,7 +125,7 @@ export class NetworkAcl extends Resource {
       this.createAssociation(scope, associationInfo, networkAcl);
     }
   
-    return networkAcl;
+    return networkAcl;ass
   }
 
   private createEntry(scope: cdk.Construct, id: string, networkAcl: CfnNetworkAcl, egress: Boolean) {
