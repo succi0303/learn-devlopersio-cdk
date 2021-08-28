@@ -1,17 +1,48 @@
 import * as cdk from '@aws-cdk/core';
-import { CfnDBSubnetGroup, CfnDBClusterParameterGroup, CfnDBParameterGroup, CfnDBCluster } from '@aws-cdk/aws-rds';
-import { CfnSubnet, CfnSecurityGroup } from '@aws-cdk/aws-ec2';
+import { CfnDBSubnetGroup, CfnDBClusterParameterGroup, CfnDBParameterGroup, CfnDBCluster, CfnDBInstance } from '@aws-cdk/aws-rds';
+import { CfnSubnet, CfnSecurityGroup, CfnRouteTable } from '@aws-cdk/aws-ec2';
 import { CfnSecret } from '@aws-cdk/aws-secretsmanager';
+import { CfnRole } from '@aws-cdk/aws-iam';
 import { Resource } from './abstract/resource';
 import { SecretsManager, OSecretKey  } from './secretsManager';
 
-export class Rds extends Resource {
-  public dbCluster: CfnDBCluster
+interface InstanceInfo {
+  readonly id: string,;
+  readonly availabilityZone: string;
+  readonly preferredMaintenanceWIndow: string;
+  readonly resourceName: string;
+  readonly assign: (intance: CfnDBInstance) => void;
+}
 
+export class Rds extends Resource {
+  public dbCluster: CfnDBCluster;
+  public dbInstance1a: CfnDBInstance;
+  public dbInstance1c: CfnDBInstance;
+
+  private static readonly engine = "aurora-mysql";
+  private static readonly databaseName = 'devio';
+  private static readonly dbInstanceClass = 'db.r5.large';
   private readonly subnetDb1a: CfnSubnet;
   private readonly subnetDb1c: CfnSubnet;
   private readonly securityGroupRds: CfnSecurityGroup;
   private readonly secretRdsCluster: CfnSecret;
+  private readonly iamRoleRds: CfnRole;
+  private readonly instances: InstanceInfo[] = [
+    {
+      id: 'RdsDbInstance1a',
+      availabilityZone: 'ap-northeast-1a',
+      preferredMaintenanceWIndow: 'sun:20:00-sun:20:30',
+      resourceName: 'rds-insntace-1a',
+      assign: instance => this.dbInstance1a = instance
+    },
+    {
+      id: 'RdsDbInstance1c',
+      availabilityZone: 'ap-northeast-1c',
+      preferredMaintenanceWIndow: 'sun:20:00-sun:20:30',
+      resourceName: 'rds-insntace-1c',
+      assign: instance => this.dbInstance1c = instance
+    }
+  ]
 
   private static readonly databaseName = 'devio';
 
@@ -20,19 +51,26 @@ export class Rds extends Resource {
     subnetDb1c: CfnSubnet,
     securityGroupRds: CfnSecurityGroup,
     secretRdsCluster: CfnSecret
+    iamRoleRds: CfnRole
   ) {
     super();
     this.subnetDb1a = subnetDb1a;
     this.subnetDb1c = subnetDb1c;
     this.securityGroupRds = securityGroupRds;
     this.secretRdsCluster = secretRdsCluster;
+    this.iamRoleRds = iamRoleRds;
   };
 
   createResources(scope: cdk.Construct) {
-    const seubnetGroup = this.createSubnetGroup(scope);
+    const subnetGroup = this.createSubnetGroup(scope);
     const clusterParameterGroup = this.createClusterParameterGroup(scope);
     const parameterGroup = this.createParameterGroup(scope);
     this.dbCluster = this.createCluster(scope, subnetGroup, clusterParameterGroup);
+
+    for (const instanceInfo of this.instances) {
+      const instance = this.createInstance(scope, instanceInfo, this.dbCluster, subnetGroup, parameterGroup);
+      instanceInfo.assign(instance);
+    }
   }
 
   private createSubnetGroup(scope: cdk.Construct): CfnDBSubnetGroup {
@@ -85,5 +123,25 @@ export class Rds extends Resource {
     });
 
     return cluster;
+  }
+
+  private createInstance(scope: cdk.Construct, instanceInfo: InstanceInfo, cluster: CfnDBCluster, subnetGroup: CfnDBSubnetGroup, parameterGroup: CfnDBParameterGroup): CfnDBInstance {
+    const instance = new CfnDBInstance(scope, instanceInfo.id, {
+      dbInstanceClass: Rds.dbInstanceClass,
+      autoMinorVersionUpgrade: false,
+      availabilityZone: instanceInfo.availabilityZone,
+      dbClusterIdentifier: cluster.ref,
+      dbInstanceIdentifier: this.createResourceName(scope, instanceInfo.resourceName),
+      dbParameterGroupName: parameterGroup.ref,
+      dbSubnetGroupName: subnetGroup.ref,
+      enablePerformanceInsights: true,
+      engine: Rds.engine,
+      monitoringInterval: 60,
+      monitoringRoleArn: this.iamRoleRds.attrArn,
+      performanceInsightsRetentionPeriod: 7,
+      preferredMaintenanceWindow: instanceInfo.preferredMaintenanceWIndow
+    })
+
+    return instance;
   }
 }
